@@ -159,34 +159,21 @@ ACTIVE_TOOLS = [
 # ============================================
 
 def load_system_prompt() -> str:
-    """Carrega o prompt do sistema humanizado para o Supermercado Queiroz"""
+    """Carrega o prompt do sistema para o Supermercado Queiroz"""
     base_dir = Path(__file__).resolve().parent
     
-    # Se modo econômico estiver ativado, usar prompt otimizado
-    if getattr(settings, "economy_mode", False):
-        prompt_path = str((base_dir / "prompts" / "agent_system_optimized.md"))
-        logger.info("Modo econômico ativado - usando prompt otimizado")
-    else:
-        prompt_path = str((base_dir / "prompts" / "agent_queiroz_humanizado.md"))
+    # Usar o prompt padrão que já existe
+    prompt_path = str((base_dir / "prompts" / "agent_system.md"))
     
     try:
         text = Path(prompt_path).read_text(encoding="utf-8")
+        text = text.replace("{base_url}", settings.supermercado_base_url)
+        text = text.replace("{ean_base}", settings.estoque_ean_base_url)
         logger.info(f"Carregado prompt do sistema de: {prompt_path}")
         return text
     except Exception as e:
-        logger.error(f"Falha ao carregar prompt específico: {e}")
-        # Fallback para o prompt padrão
-        logger.info("Tentando carregar prompt padrão como fallback...")
-        fallback_path = str((base_dir / "prompts" / "agent_system.md"))
-        try:
-            text = Path(fallback_path).read_text(encoding="utf-8")
-            text = text.replace("{base_url}", settings.supermercado_base_url)
-            text = text.replace("{ean_base}", settings.estoque_ean_base_url)
-            logger.info(f"Carregado prompt de fallback de: {fallback_path}")
-            return text
-        except Exception as fallback_error:
-            logger.error(f"Falha ao carregar prompt de fallback também: {fallback_error}")
-            raise
+        logger.error(f"Falha ao carregar prompt do sistema: {e}")
+        raise
 
 
 def _build_llm():
@@ -222,7 +209,7 @@ def _build_llm():
             _os.environ["ANTHROPIC_BASE_URL"] = _u
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model=model, temperature=temp, max_tokens=max_tokens)
-    return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp, max_tokens=max_tokens)
+    return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp, max_completion_tokens=max_tokens)
 
 def create_agent_with_history():
     """Cria o agente LangGraph com histórico usando create_react_agent"""

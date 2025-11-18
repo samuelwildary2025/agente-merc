@@ -160,3 +160,135 @@ class LimitedPostgresChatMessageHistory(BaseChatMessageHistory):
             return recent_messages[-3:]  # Only last 3 messages
         
         return recent_messages
+    
+    def get_recent_messages_with_timestamps(self, limit: Optional[int] = None) -> List[dict]:
+        """
+        Get recent messages with timestamps for internal agent analysis.
+        Returns messages with timestamp information that can be used internally
+        but should not be exposed to clients.
+        
+        Args:
+            limit: Maximum number of recent messages to return (defaults to max_messages)
+        """
+        if limit is None:
+            limit = self.max_messages
+            
+        try:
+            with psycopg2.connect(self.connection_string) as conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                    cursor.execute(f"""
+                        SELECT message, created_at 
+                        FROM {self.table_name}
+                        WHERE session_id = %s
+                        ORDER BY id DESC
+                        LIMIT %s
+                    """, (self.session_id, limit))
+                    
+                    results = cursor.fetchall()
+                    
+                    messages_with_timestamps = []
+                    for row in reversed(results):  # Reverse to maintain chronological order
+                        message_data = row['message']
+                        created_at = row['created_at']
+                        
+                        # Add timestamp to message metadata for internal use
+                        if isinstance(message_data, dict):
+                            message_data['_timestamp'] = created_at.isoformat()
+                        
+                        messages_with_timestamps.append({
+                            'message': message_data,
+                            'timestamp': created_at.isoformat()
+                        })
+                    
+                    return messages_with_timestamps
+                    
+        except Exception as e:
+            print(f"Error retrieving recent messages with timestamps: {e}")
+            return []
+    
+    def get_conversation_metrics(self) -> dict:
+        """
+        Get conversation metrics for internal analysis.
+        Returns metrics that can help the agent understand conversation patterns.
+        """
+        try:
+            messages_with_ts = self.get_recent_messages_with_timestamps()
+            if not messages_with_ts:
+                return {}
+            
+            # Calculate time gaps between messages
+            timestamps = [msg['timestamp'] for msg in messages_with_ts]
+            from datetime import datetime
+            
+            parsed_timestamps = []
+            for ts in timestamps:
+                try:
+                    parsed_timestamps.append(datetime.fromisoformat(ts))
+                except:
+                    continue
+            
+            if len(parsed_timestamps) < 2:
+                return {
+                    'total_messages': len(messages_with_ts),
+                    'time_span_minutes': 0,
+                    'avg_response_time_minutes': 0
+                }
+            
+            # Calculate time differences in minutes
+            time_differences = []
+            for i in range(1, len(parsed_timestamps)):
+                diff = (parsed_timestamps[i] - parsed_timestamps[i-1]).total_seconds() / 60
+                time_differences.append(diff)
+            
+            total_span = (parsed_timestamps[-1] - parsed_timestamps[0]).total_seconds() / 60
+            avg_response_time = sum(time_differences) / len(time_differences) if time_differences else 0
+            
+            return {
+                'total_messages': len(messages_with_ts),
+                'time_span_minutes': round(total_span, 2),
+                'avg_response_time_minutes': round(avg_response_time, 2),
+                'first_message_time': parsed_timestamps[0].isoformat(),
+                'last_message_time': parsed_timestamps[-1].isoformat()
+            }
+            
+        except Exception as e:
+            print(f"Error calculating conversation metrics: {e}")
+            return {}
+    
+    def get_messages_with_timestamps(self) -> List[dict]:
+        """
+        Get messages with timestamps for internal agent use.
+        Returns messages with timestamp information that can be used internally
+        but should not be exposed to clients.
+        """
+        try:
+            with psycopg2.connect(self.connection_string) as conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                    cursor.execute(f"""
+                        SELECT message, created_at 
+                        FROM {self.table_name}
+                        WHERE session_id = %s
+                        ORDER BY id ASC
+                    """, (self.session_id,))
+                    
+                    results = cursor.fetchall()
+                    
+                    messages_with_timestamps = []
+                    for row in results:
+                        message_data = row['message']
+                        created_at = row['created_at']
+                        
+                        # Add timestamp to message metadata for internal use
+                        if isinstance(message_data, dict):
+                            message_data['_timestamp'] = created_at.isoformat()
+                        
+                        messages_with_timestamps.append({
+                            'message': message_data,
+                            'timestamp': created_at.isoformat()
+                        })
+                    
+                    return messages_with_timestamps
+                    
+        except Exception as e:
+            print(f"Error retrieving messages with timestamps: {e}")
+            return []

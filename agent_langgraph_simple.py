@@ -22,6 +22,7 @@ from tools.http_tools import estoque, pedidos, alterar, ean_lookup, estoque_prec
 # Redis tools removidos - apenas buffer de mensagens mantido
 from tools.time_tool import get_current_time
 from memory.limited_postgres_memory import LimitedPostgresChatMessageHistory
+from memory.response_filter import prepare_client_response
 
 logger = setup_logger(__name__)
 
@@ -217,7 +218,12 @@ def _build_llm():
         return ChatAnthropic(model=model, temperature=temp, max_tokens=max_tokens)
     
     print(f"[LLM] Criando ChatOpenAI com modelo {model}")
-    return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp)
+    
+    # GPT-5-mini não suporta temperatura - apenas usar para outros modelos
+    if model == "gpt-5-mini":
+        return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key)
+    else:
+        return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp)
 
 def create_agent_with_history():
     """Cria o agente LangGraph com histórico usando create_react_agent"""
@@ -320,9 +326,13 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
         logger.info("✅ Agente LangGraph REACT executado com sucesso")
         logger.debug(f"Resposta: {output}")
         
+        # Filter internal metadata before returning to client
+        filtered_output = prepare_client_response(output)
+        logger.debug(f"Resposta filtrada: {filtered_output}")
+        
         # Redis removido - apenas buffer de mensagens mantido
         
-        return {"output": output, "error": None}
+        return {"output": filtered_output, "error": None}
         
     except Exception as e:
         logger.error(f"Falha ao executar agente LangGraph REACT: {e}", exc_info=True)

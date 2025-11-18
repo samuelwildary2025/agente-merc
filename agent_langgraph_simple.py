@@ -222,8 +222,38 @@ def _build_llm():
     
     # GPT-5-mini não suporta temperatura - apenas usar para outros modelos
     if model == "gpt-5-mini":
-        return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key)
+        # Forçar temperatura padrão (1.0) para GPT-5-mini, mas não passar o parâmetro
+        print(f"[LLM] Criando ChatOpenAI com modelo {model} (sem temperatura)")
+        
+        # Criar modelo sem temperatura
+        base_model = ChatOpenAI(model=model, openai_api_key=settings.openai_api_key)
+        
+        # Criar wrapper que ignora qualquer tentativa de adicionar temperatura
+        class GPT5MiniWrapper:
+            def __init__(self, model):
+                self._model = model
+                self.model_name = model.model_name
+                
+            def invoke(self, input, config=None, **kwargs):
+                # Remover temperatura de qualquer configuração
+                if config and 'temperature' in str(config).lower():
+                    print("[LLM] Ignorando configuração de temperatura para GPT-5-mini")
+                # Chamar modelo sem temperatura
+                return self._model.invoke(input, config, **kwargs)
+                
+            def bind(self, **kwargs):
+                # Ignorar bind de temperatura
+                filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'temperature'}
+                if 'temperature' in kwargs:
+                    print(f"[LLM] Ignorando bind de temperatura: {kwargs.get('temperature')}")
+                return GPT5MiniWrapper(self._model.bind(**filtered_kwargs))
+                
+            def __getattr__(self, name):
+                return getattr(self._model, name)
+        
+        return GPT5MiniWrapper(base_model)
     else:
+        print(f"[LLM] Criando ChatOpenAI com modelo {model} e temperatura {temp}")
         return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp)
 
 def create_agent_with_history():
@@ -239,12 +269,22 @@ def create_agent_with_history():
     memory = MemorySaver()
     
     # Criar agente REACT usando a função prebuilt
-    agent = create_react_agent(
-        llm,
-        ACTIVE_TOOLS,
-        prompt=system_prompt,
-        checkpointer=memory
-    )
+    # Para GPT-5-mini, precisamos garantir que não haja configuração de temperatura
+    if settings.llm_model == "gpt-5-mini":
+        # Criar agente sem configurações adicionais que possam adicionar temperatura
+        agent = create_react_agent(
+            llm,
+            ACTIVE_TOOLS,
+            prompt=system_prompt,
+            checkpointer=memory
+        )
+    else:
+        agent = create_react_agent(
+            llm,
+            ACTIVE_TOOLS,
+            prompt=system_prompt,
+            checkpointer=memory
+        )
     
     logger.info("✅ Agente LangGraph REACT criado com sucesso")
     return agent

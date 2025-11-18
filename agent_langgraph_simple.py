@@ -181,15 +181,13 @@ def _build_llm():
     provider = getattr(settings, "llm_provider", "openai").lower()
     model = getattr(settings, "llm_model", "gpt-4o-mini")
     temp = float(getattr(settings, "llm_temperature", 0.0))
-    max_tokens = getattr(settings, "max_response_tokens", 800)
     profile = getattr(settings, "llm_profile", None)
     
-    print(f"[LLM] Configurando LLM: provider={provider}, model={model}, temp={temp}, max_tokens={max_tokens}")
+    print(f"[LLM] Configurando LLM: provider={provider}, model={model}, temp={temp}")
     
-    # Corrigir modelo se estiver errado
+    # Usar gpt-5-mini se especificado
     if model == "gpt-5-mini":
-        print(f"[LLM] Corrigindo modelo de {model} para gpt-4o-mini")
-        model = "gpt-4o-mini"
+        print(f"[LLM] Usando modelo: {model}")
     if profile:
         p = str(profile).lower().strip()
         if p == "quality_openai":
@@ -218,14 +216,8 @@ def _build_llm():
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model=model, temperature=temp, max_tokens=max_tokens)
     
-    # Verificar se precisa usar max_completion_tokens baseado no modelo
-    # Modelos mais novos como gpt-4o e gpt-4o-mini usam max_completion_tokens
-    if model in ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4-turbo-preview"]:
-        print(f"[LLM] Usando max_completion_tokens para modelo {model}")
-        return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp, max_completion_tokens=max_tokens)
-    else:
-        print(f"[LLM] Usando max_tokens para modelo {model}")
-        return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp, max_tokens=max_tokens)
+    print(f"[LLM] Criando ChatOpenAI com modelo {model}")
+    return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp)
 
 def create_agent_with_history():
     """Cria o agente LangGraph com histórico usando create_react_agent"""

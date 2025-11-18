@@ -150,6 +150,7 @@ TOOLS = [
 ACTIVE_TOOLS = [
     ean_tool_alias,
     estoque_preco_alias,
+    estoque_tool,
     time_tool,
 ]
 
@@ -263,28 +264,40 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
         Dict com 'output' (resposta do agente) e 'error' (se houver)
     """
     logger.info(f"Executando agente LangGraph REACT para telefone: {telefone}")
-    logger.debug(f"Mensagem recebida: {mensagem}")
+    logger.info(f"Mensagem recebida: {mensagem}")
     
     try:
         agent = get_agent_graph()
+        logger.info(f"Agente carregado com {len(ACTIVE_TOOLS)} ferramentas ativas")
         
         # Preparar estado inicial
         initial_state = {
             "messages": [HumanMessage(content=mensagem)],
         }
         
+        logger.info(f"Estado inicial preparado: {initial_state}")
+        
         # Configuração com session_id para checkpoint
         config = {"configurable": {"thread_id": telefone}}
         
         # Executar grafo
+        logger.info("Executando agente...")
         result = agent.invoke(initial_state, config)
         
+        # Debug: verificar estrutura do resultado
+        logger.debug(f"Resultado do agente: {result}")
+        logger.debug(f"Tipo do resultado: {type(result)}")
+        
         # Extrair última mensagem (resposta do agente)
-        last_message = result["messages"][-1]
-        if isinstance(last_message, AIMessage):
-            output = last_message.content
+        if isinstance(result, dict) and "messages" in result:
+            last_message = result["messages"][-1]
+            if isinstance(last_message, AIMessage):
+                output = last_message.content
+            else:
+                output = str(last_message.content)
         else:
-            output = str(last_message.content)
+            logger.error(f"Resultado inesperado do agente: {result}")
+            output = "Desculpe, não consegui processar sua mensagem."
         
         logger.info("✅ Agente LangGraph REACT executado com sucesso")
         logger.debug(f"Resposta: {output}")

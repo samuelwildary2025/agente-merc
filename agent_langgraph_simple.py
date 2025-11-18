@@ -183,6 +183,8 @@ def _build_llm():
     temp = float(getattr(settings, "llm_temperature", 0.0))
     max_tokens = getattr(settings, "max_response_tokens", 800)
     profile = getattr(settings, "llm_profile", None)
+    
+    print(f"[LLM] Configurando LLM: provider={provider}, model={model}, temp={temp}, max_tokens={max_tokens}")
     if profile:
         p = str(profile).lower().strip()
         if p == "quality_openai":
@@ -210,7 +212,7 @@ def _build_llm():
             _os.environ["ANTHROPIC_BASE_URL"] = _u
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model=model, temperature=temp, max_tokens=max_tokens)
-    return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp, max_completion_tokens=max_tokens)
+    return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp, max_tokens=max_tokens)
 
 def create_agent_with_history():
     """Cria o agente LangGraph com histórico usando create_react_agent"""
@@ -263,12 +265,12 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
     Returns:
         Dict com 'output' (resposta do agente) e 'error' (se houver)
     """
-    logger.info(f"Executando agente LangGraph REACT para telefone: {telefone}")
-    logger.info(f"Mensagem recebida: {mensagem}")
+    print(f"[AGENT] Iniciando processamento para telefone: {telefone}")
+    print(f"[AGENT] Mensagem: {mensagem}")
     
     try:
         agent = get_agent_graph()
-        logger.info(f"Agente carregado com {len(ACTIVE_TOOLS)} ferramentas ativas")
+        print(f"[AGENT] Agente carregado com {len(ACTIVE_TOOLS)} ferramentas ativas")
         
         # Preparar estado inicial
         initial_state = {
@@ -285,18 +287,29 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
         result = agent.invoke(initial_state, config)
         
         # Debug: verificar estrutura do resultado
-        logger.debug(f"Resultado do agente: {result}")
-        logger.debug(f"Tipo do resultado: {type(result)}")
+        print(f"[DEBUG] Resultado do agente: {result}")
+        print(f"[DEBUG] Tipo do resultado: {type(result)}")
         
         # Extrair última mensagem (resposta do agente)
         if isinstance(result, dict) and "messages" in result:
-            last_message = result["messages"][-1]
-            if isinstance(last_message, AIMessage):
-                output = last_message.content
+            messages = result["messages"]
+            print(f"[DEBUG] Total de mensagens: {len(messages)}")
+            if messages:
+                last_message = messages[-1]
+                print(f"[DEBUG] Última mensagem: {last_message}")
+                print(f"[DEBUG] Tipo da última mensagem: {type(last_message)}")
+                
+                if isinstance(last_message, AIMessage):
+                    output = last_message.content
+                else:
+                    output = str(last_message.content)
+                
+                print(f"[DEBUG] Conteúdo extraído: {output}")
             else:
-                output = str(last_message.content)
+                print("[ERROR] Nenhuma mensagem retornada pelo agente")
+                output = "Desculpe, não consegui processar sua mensagem."
         else:
-            logger.error(f"Resultado inesperado do agente: {result}")
+            print(f"[ERROR] Resultado inesperado do agente: {result}")
             output = "Desculpe, não consegui processar sua mensagem."
         
         logger.info("✅ Agente LangGraph REACT executado com sucesso")

@@ -185,6 +185,11 @@ def _build_llm():
     profile = getattr(settings, "llm_profile", None)
     
     print(f"[LLM] Configurando LLM: provider={provider}, model={model}, temp={temp}, max_tokens={max_tokens}")
+    
+    # Corrigir modelo se estiver errado
+    if model == "gpt-5-mini":
+        print(f"[LLM] Corrigindo modelo de {model} para gpt-4o-mini")
+        model = "gpt-4o-mini"
     if profile:
         p = str(profile).lower().strip()
         if p == "quality_openai":
@@ -212,7 +217,15 @@ def _build_llm():
             _os.environ["ANTHROPIC_BASE_URL"] = _u
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model=model, temperature=temp, max_tokens=max_tokens)
-    return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp, max_tokens=max_tokens)
+    
+    # Verificar se precisa usar max_completion_tokens baseado no modelo
+    # Modelos mais novos como gpt-4o e gpt-4o-mini usam max_completion_tokens
+    if model in ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4-turbo-preview"]:
+        print(f"[LLM] Usando max_completion_tokens para modelo {model}")
+        return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp, max_completion_tokens=max_tokens)
+    else:
+        print(f"[LLM] Usando max_tokens para modelo {model}")
+        return ChatOpenAI(model=model, openai_api_key=settings.openai_api_key, temperature=temp, max_tokens=max_tokens)
 
 def create_agent_with_history():
     """Cria o agente LangGraph com histórico usando create_react_agent"""

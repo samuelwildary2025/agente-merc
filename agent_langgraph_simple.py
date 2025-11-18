@@ -160,25 +160,21 @@ ACTIVE_TOOLS = [
 # ============================================
 
 def load_system_prompt() -> str:
-    """Carrega o prompt do sistema para o Supermercado Queiroz (versão curta para economizar tokens)"""
+    """Carrega o prompt do sistema para o Supermercado Queiroz"""
     base_dir = Path(__file__).resolve().parent
     
-    # Usar o prompt curto para economizar tokens
-    prompt_path = str((base_dir / "prompts" / "agent_system_short.md"))
+    # Usar o prompt padrão que já existe
+    prompt_path = str((base_dir / "prompts" / "agent_system.md"))
     
     try:
         text = Path(prompt_path).read_text(encoding="utf-8")
-        logger.info(f"Carregado prompt CURTO do sistema de: {prompt_path}")
+        text = text.replace("{base_url}", settings.supermercado_base_url)
+        text = text.replace("{ean_base}", settings.estoque_ean_base_url)
+        logger.info(f"Carregado prompt do sistema de: {prompt_path}")
         return text
     except Exception as e:
         logger.error(f"Falha ao carregar prompt do sistema: {e}")
-        # Fallback para o prompt original se o curto não existir
-        fallback_path = str((base_dir / "prompts" / "agent_system.md"))
-        text = Path(fallback_path).read_text(encoding="utf-8")
-        text = text.replace("{base_url}", settings.supermercado_base_url)
-        text = text.replace("{ean_base}", settings.estoque_ean_base_url)
-        logger.info(f"Usando prompt original como fallback: {fallback_path}")
-        return text
+        raise
 
 
 def _build_llm():
@@ -281,47 +277,59 @@ def run_agent_langgraph(telefone: str, mensagem: str) -> Dict[str, Any]:
         agent = get_agent_graph()
         print(f"[AGENT] Agente carregado com {len(ACTIVE_TOOLS)} ferramentas ativas")
         
-        # Preparar estado inicial (limitar contexto para economizar tokens)
+        # Preparar estado inicial
         initial_state = {
             "messages": [HumanMessage(content=mensagem)],
         }
         
+        logger.info(f"Estado inicial preparado: {initial_state}")
+        
         # Configuração com session_id para checkpoint
         config = {"configurable": {"thread_id": telefone}}
         
-        # Executar grafo (sem logs detalhados para economizar tokens)
-        print(f"[AGENT] Processando mensagem...")
+        # Executar grafo
+        logger.info("Executando agente...")
         result = agent.invoke(initial_state, config)
         
-        # Extrair última mensagem (resposta do agente) - forma simplificada
+        # Debug: verificar estrutura do resultado
+        print(f"[DEBUG] Resultado do agente: {result}")
+        print(f"[DEBUG] Tipo do resultado: {type(result)}")
+        
+        # Extrair última mensagem (resposta do agente)
         if isinstance(result, dict) and "messages" in result:
             messages = result["messages"]
+            print(f"[DEBUG] Total de mensagens: {len(messages)}")
             if messages:
                 last_message = messages[-1]
+                print(f"[DEBUG] Última mensagem: {last_message}")
+                print(f"[DEBUG] Tipo da última mensagem: {type(last_message)}")
                 
                 if isinstance(last_message, AIMessage):
                     output = last_message.content
                 else:
                     output = str(last_message.content)
                 
-                # Log curto para economizar tokens
-                print(f"[AGENT] Resposta gerada: {len(output)} caracteres")
+                print(f"[DEBUG] Conteúdo extraído: {output}")
             else:
-                print("[AGENT] Erro: sem mensagem retornada")
-                output = "Desculpe, não consegui processar."
+                print("[ERROR] Nenhuma mensagem retornada pelo agente")
+                output = "Desculpe, não consegui processar sua mensagem."
         else:
-            print("[AGENT] Erro: resultado inesperado")
-            output = "Desculpe, não consegui processar."
+            print(f"[ERROR] Resultado inesperado do agente: {result}")
+            output = "Desculpe, não consegui processar sua mensagem."
         
-        logger.info("Agente executado com sucesso")
+        logger.info("✅ Agente LangGraph REACT executado com sucesso")
+        logger.debug(f"Resposta: {output}")
+        
+        # Redis removido - apenas buffer de mensagens mantido
         
         return {"output": output, "error": None}
         
     except Exception as e:
-        logger.error(f"Erro no agente: {e}")
+        logger.error(f"Falha ao executar agente LangGraph REACT: {e}", exc_info=True)
+        error_msg = f"Erro ao executar o agente: {e}"
         return {
-            "output": "Desculpe, não consegui processar agora.",
-            "error": str(e),
+            "output": "Desculpe, não consegui processar sua mensagem agora.",
+            "error": error_msg,
         }
 
 

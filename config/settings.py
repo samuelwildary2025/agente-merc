@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str
     llm_model: str = "gpt-5-mini"
-    llm_temperature: float = 0.1  # Ligeiramente mais alto para respostas mais naturais mas ainda diretas
+    llm_temperature: float = 0.0
     llm_provider: str = "openai"
     moonshot_api_key: Optional[str] = None
     moonshot_api_url: str = "https://api.moonshot.ai/anthropic"
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # Postgres
     postgres_connection_string: str
     postgres_table_name: str = "memoria"  # Nome da tabela para histórico de mensagens (padrão: memoria)
-    postgres_message_limit: int = 4  # Reduzido para 4 mensagens para economizar tokens
+    postgres_message_limit: int = 12  # Número de mensagens recentes usadas pelo agente (0 = ilimitado)
     
     # Redis
     redis_host: str = "localhost"
@@ -69,8 +69,8 @@ class Settings(BaseSettings):
     server_port: int = 8000
     debug_mode: bool = False
 
-    # Logging  
-    log_level: str = "WARNING"  # Reduzido para economizar tokens
+    # Logging
+    log_level: str = "INFO"
     log_file: str = "logs/agente.log"
 
     # Prompt do agente (caminho opcional para arquivo externo)

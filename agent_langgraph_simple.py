@@ -153,6 +153,7 @@ ACTIVE_TOOLS = [
     estoque_preco_alias,
     estoque_tool,
     time_tool,
+    pedidos_tool,  # <--- ADICIONADO AQUI (Correção Crítica)
 ]
 
 
